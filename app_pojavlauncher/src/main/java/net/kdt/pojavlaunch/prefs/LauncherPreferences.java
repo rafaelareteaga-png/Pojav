@@ -18,6 +18,7 @@ import net.kdt.pojavlaunch.multirt.MultiRTUtils;
 import net.kdt.pojavlaunch.utils.JREUtils;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public class LauncherPreferences {
     public static final String PREF_KEY_CURRENT_PROFILE = "currentProfile";
@@ -147,6 +148,9 @@ public class LauncherPreferences {
         // Limit the max for 32 bits devices more harshly
         if (is32BitsDevice()) return 696;
 
+        // Exynos 1480 (8 GB o más): 3 GB de heap, el resto queda para Android y el driver gráfico
+        if (isExynos1480() && deviceRam >= 7168) return 3072;
+
         if (deviceRam < 3064) return 936;
         if (deviceRam < 4096) return 1144;
         if (deviceRam < 6144) return 1536;
@@ -161,12 +165,27 @@ public class LauncherPreferences {
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         int minSide = Math.min(metrics.widthPixels, metrics.heightPixels);
         int targetSide = isDevicePowerful ? 1080 : 720;
+        // Exynos 1480 (Xclipse 530): render al ~80% de una pantalla Full HD+ para aliviar la GPU
+        if (isDevicePowerful && isExynos1480()) targetSide = 864;
         if (minSide <= targetSide) return 100; // No need to scale down
 
         float ratio = (100f * targetSide / minSide);
         // The value must match the seekbar values
         int increment = context.getResources().getInteger(R.integer.resolution_seekbar_increment);
         return (int) (Math.ceil(ratio / increment) * increment);
+    }
+
+    /// Detecta el Exynos 1480 (código de modelo S5E8845), que usan por ejemplo el Galaxy A55 y el M55.
+    /// Solo se usa para ajustar valores por defecto: en cualquier otro chip el comportamiento no cambia.
+    private static boolean isExynos1480() {
+        String[] ids = { Build.HARDWARE, Build.BOARD,
+                SDK_INT >= Build.VERSION_CODES.S ? Build.SOC_MODEL : null };
+        for (String id : ids) {
+            if (id == null) continue;
+            String low = id.toLowerCase(Locale.ROOT);
+            if (low.contains("s5e8845") || low.contains("exynos 1480") || low.contains("exynos1480")) return true;
+        }
+        return false;
     }
 
     /// Check if the device is considered powerful.
